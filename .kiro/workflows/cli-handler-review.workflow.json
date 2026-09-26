@@ -1,0 +1,45 @@
+{
+  "name": "cli-handler-review",
+  "description": "Review cmd_add, cmd_complete, and cmd_delete in src/task_manager/cli.py in parallel, then aggregate into one risk-ranked note.",
+  "inputs": {
+    "cli_path": "file",
+    "output_note": "file",
+    "reviews_dir": "string"
+  },
+  "steps": [
+    {
+      "type": "parallel",
+      "id": "review-handlers",
+      "joinPolicy": "all",
+      "branches": [
+        {
+          "type": "step",
+          "id": "review-add",
+          "agent": "semantic_reviewer",
+          "modelId": "auto",
+          "prompt": "Review ONLY the cmd_add function in {{cli_path}} (task-manager-cli project). Read the full file for context first, but scope findings to cmd_add. cmd_add does: tasks = store.load(); task = Task(id=store.next_id(tasks), title=args.title, priority=args.priority); tasks.append(task); store.save(tasks); print(...). Assess correctness, edge cases, error handling, concurrency/race conditions (load-modify-save is not atomic), input handling, failure modes (e.g. save raising after partial work), and adherence to the project's models/storage/cli layering conventions in AGENTS.md. For EACH finding give: a short title, severity (critical/high/medium/low/info), the specific line(s), concrete evidence, and a suggested remediation. Do NOT modify any source files. Write your findings as a self-contained markdown section to {{reviews_dir}}/cmd_add.md and also return them in your response."
+        },
+        {
+          "type": "step",
+          "id": "review-complete",
+          "agent": "semantic_reviewer",
+          "modelId": "auto",
+          "prompt": "Review ONLY the cmd_complete function in {{cli_path}} (task-manager-cli project). Read the full file for context first, but scope findings to cmd_complete. cmd_complete does: tasks = store.load(); linear scan for t.id == args.id; if found set t.completed = True, store.save(tasks), print success, return; if not found print 'Task {id} not found.' to stderr and sys.exit(1). Assess correctness, edge cases (already-completed task, duplicate ids, empty store), error handling, the not-found path and exit-code behavior, concurrency/race conditions (non-atomic load-modify-save), and adherence to the project's models/storage/cli layering conventions in AGENTS.md. For EACH finding give: a short title, severity (critical/high/medium/low/info), the specific line(s), concrete evidence, and a suggested remediation. Do NOT modify any source files. Write your findings as a self-contained markdown section to {{reviews_dir}}/cmd_complete.md and also return them in your response."
+        },
+        {
+          "type": "step",
+          "id": "review-delete",
+          "agent": "semantic_reviewer",
+          "modelId": "auto",
+          "prompt": "Review ONLY the cmd_delete function in {{cli_path}} (task-manager-cli project). Read the full file for context first, but scope findings to cmd_delete. cmd_delete does: tasks = store.load(); remaining = [t for t in tasks if t.id != args.id]; if len(remaining) == len(tasks) print 'Task {id} not found.' to stderr and sys.exit(1); else store.save(remaining), print 'Deleted task {id}'. Assess correctness, edge cases (empty store, duplicate ids where the filter would remove multiple, no confirmation before destructive delete), error handling, the not-found detection via length comparison, concurrency/race conditions (non-atomic load-modify-save), and adherence to the project's models/storage/cli layering conventions in AGENTS.md. For EACH finding give: a short title, severity (critical/high/medium/low/info), the specific line(s), concrete evidence, and a suggested remediation. Do NOT modify any source files. Write your findings as a self-contained markdown section to {{reviews_dir}}/cmd_delete.md and also return them in your response."
+        }
+      ]
+    },
+    {
+      "type": "step",
+      "id": "aggregate",
+      "agent": "wf-review-aggregator",
+      "prompt": "Three independent reviews of command handlers in {{cli_path}} have been written to {{reviews_dir}}/cmd_add.md, {{reviews_dir}}/cmd_complete.md, and {{reviews_dir}}/cmd_delete.md. Read all three files. Consolidate them into a SINGLE risk-ranked review note written to {{output_note}}. Requirements for the note: (1) a short intro naming the file and the three handlers reviewed and the date; (2) a summary table of all findings with columns Severity | Handler | Finding | Location; (3) findings sorted by severity (critical first, then high, medium, low, info); (4) de-duplicate or group cross-cutting issues that appear in more than one handler (e.g. the non-atomic load-modify-save race condition likely affects all three) into a single 'Cross-cutting' entry noting which handlers it applies to; (5) for each finding keep title, severity, affected handler(s), location, evidence, and remediation; (6) a brief closing 'Overall risk' assessment. Preserve the substance of the individual reviews faithfully — do not invent findings not present in the source reviews. Do NOT modify any source files."
+    }
+  ]
+}

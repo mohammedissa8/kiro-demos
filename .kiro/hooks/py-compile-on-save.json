@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "py-compile-on-save",
+      "trigger": "PostFileSave",
+      "matcher": "\\.py$",
+      "action": {
+        "type": "agent",
+        "prompt": "A Python file was just saved. Run `python3 -m py_compile` on the project's Python modules. If any fail, summarize the syntax errors and affected files. Do not modify code."
+      }
+    }
+  ]
+}

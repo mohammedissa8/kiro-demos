@@ -1,0 +1,39 @@
+{
+  "name": "release-notes-fanout",
+  "description": "Reads a project README, fans out two release-note drafts in parallel (CLI end-users and operators/rollout-risk), then assembles them into a single cohesive RELEASE-NOTES file. Reusable/parameterized recipe.",
+  "inputs": {
+    "readme_path": "file",
+    "release_notes_path": "string",
+    "version": "string"
+  },
+  "steps": [
+    {
+      "type": "parallel",
+      "id": "draft-fanout",
+      "joinPolicy": "all",
+      "branches": [
+        {
+          "type": "step",
+          "id": "draft-cli-users",
+          "agent": "wf-coder",
+          "prompt": "You are drafting release notes aimed at CLI END-USERS for version {{version}}.\n\nRead the project README at {{readme_path}} to understand what the tool does and what changed. Base your draft on the README's actual content — do not invent features that are not described there.\n\nWrite a user-facing release-notes draft to {{readme_path}}.release-cli-draft.md covering:\n- A short summary of user-visible changes in this release.\n- New or changed commands and flags (with example invocations where the README shows them).\n- Upgrade / installation steps a user needs to follow.\n- Any behavior changes users should be aware of.\n\nKeep the tone clear and non-operational (this is for people who USE the CLI, not deploy it). Write the draft file, then in your final message state the absolute path of the draft you wrote so downstream steps can find it.",
+          "artifacts": { "cli_draft": "{{readme_path}}.release-cli-draft.md" }
+        },
+        {
+          "type": "step",
+          "id": "draft-operators",
+          "agent": "wf-coder",
+          "prompt": "You are drafting release notes aimed at OPERATORS covering ROLLOUT RISK for version {{version}}.\n\nRead the project README at {{readme_path}} to understand the system, its persistence model, and how it runs. Base your draft on the README's actual content — do not invent infrastructure that is not described there.\n\nWrite an operator-facing release-notes draft to {{readme_path}}.release-ops-draft.md covering:\n- Deployment / rollout considerations for this release.\n- A risk assessment (what could go wrong, blast radius, severity).\n- Backout / rollback procedure.\n- Data and persistence impact (e.g. on-disk state, file formats, migrations).\n\nKeep the tone operational and risk-focused (this is for people who DEPLOY and OPERATE the tool). Write the draft file, then in your final message state the absolute path of the draft you wrote so downstream steps can find it.",
+          "artifacts": { "ops_draft": "{{readme_path}}.release-ops-draft.md" }
+        }
+      ]
+    },
+    {
+      "type": "step",
+      "id": "assemble",
+      "agent": "wf-coder",
+      "prompt": "Assemble a single cohesive RELEASE-NOTES file for version {{version}} from the two parallel drafts.\n\nRead both draft files:\n- CLI end-user draft: {{artifacts.cli_draft}}\n- Operator / rollout-risk draft: {{artifacts.ops_draft}}\n\nAlso re-read the project README at {{readme_path}} if you need context to reconcile the two drafts.\n\nCombine them into one well-structured RELEASE-NOTES document written to {{release_notes_path}} with clear sections, for example:\n1. A top-level heading with the version {{version}}.\n2. \"For CLI Users\" — the user-facing content from the CLI draft (summary, new/changed commands and flags, upgrade steps, behavior changes).\n3. \"For Operators\" — the operator content from the ops draft (rollout considerations, risk assessment, backout/rollback, data/persistence impact).\n\nDeduplicate overlapping points, keep the language consistent across both sections, and ensure the final file reads as one cohesive release-notes document rather than two stapled-together drafts. Write the final file to {{release_notes_path}} and state that path in your final message.",
+      "artifacts": { "release_notes": "{{release_notes_path}}" }
+    }
+  ]
+}

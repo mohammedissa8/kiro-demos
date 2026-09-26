@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "tool-audit-log",
+      "trigger": "PostToolUse",
+      "matcher": ".*",
+      "action": {
+        "type": "command",
+        "command": "printf '%s  tool invoked\\n' \"$(date -u +%FT%TZ)\" >> .kiro/logs/tool-audit.log"
+      }
+    }
+  ]
+}

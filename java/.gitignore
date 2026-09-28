@@ -1,0 +1,11 @@
+# Build output
+target/
+out/
+
+# Runtime data
+tasks.json
+
+# Editor/IDE
+*.class
+.idea/
+*.iml
